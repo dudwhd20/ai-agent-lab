@@ -9,6 +9,7 @@ from agent_foundation.agent.prompts import prompt_guided, prompt_ask, prompt_tic
 from agent_foundation.rag.faiss_retriever import FaissRetriever
 from agent_foundation.tools.create_ticket import CreateTicketTool
 from agent_foundation.agent.query_normalize import normalize_query, should_fallback_to_original
+from agent_foundation.agent.clarify import build_clarifying_questions
 
 
 # ✅ distance 기준(낮을수록 유사) 가정
@@ -54,8 +55,23 @@ def build_graph():
         return state
 
     def ask(state: AgentState) -> AgentState:
-        msg = llm.invoke(prompt_ask(state.user_text, state.kb_hits))
-        state.final_text = msg.content
+        qs = build_clarifying_questions(state.user_text, state.kb_hits)
+
+        # out.final_text는 “포맷된 고정 텍스트”로 만든다 (LLM 호출 없음)
+        # 이유: 질문 품질을 시스템이 통제하기 위함
+        hits_repr = []
+        for h in state.kb_hits:
+            hits_repr.append(f"{h['id']} - {h['title']}")
+        hits_str = "[" + ", ".join(hits_repr) + "]" if hits_repr else "[]"
+
+        state.final_text = (
+            f"- 근거(KB Hits): {hits_str}\n"
+            f"- 확인 질문:\n"
+            f"  1) {qs[0]}\n"
+            f"  2) {qs[1]}\n"
+            f"- 조치(Action Taken): asked\n"
+            f"- 결과(Result): 추가 정보 요청"
+        )
         state.action = "asked"
         return state
 

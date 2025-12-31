@@ -23,6 +23,7 @@ def build_decision_log(
     confidence: str,
     action: str,
     ticket: Optional[dict[str, Any]],
+    ask_questions: Optional[list[str]] = None,
 ) -> Dict[str, Any]:
     # 로그 크기 제한: hit는 상위 3개만, snippet은 짧게
     slim_hits = []
@@ -46,4 +47,5 @@ def build_decision_log(
         "confidence": confidence,
         "action": action,
         "ticket_id": (ticket or {}).get("ticket_id"),
+        "ask_questions": ask_questions,
     }
