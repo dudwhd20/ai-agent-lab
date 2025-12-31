@@ -10,11 +10,14 @@ from agent_foundation.rag.faiss_retriever import FaissRetriever
 from agent_foundation.tools.create_ticket import CreateTicketTool
 from agent_foundation.agent.query_normalize import normalize_query, should_fallback_to_original
 from agent_foundation.agent.clarify import build_clarifying_questions
+from agent_foundation.tickets.ticket_store import append_ticket
+from agent_foundation.tickets.ticket_index import find_similar_ticket, rebuild_ticket_index
 
 
 # ✅ distance 기준(낮을수록 유사) 가정
 HIGH_MAX = float(os.getenv("RAG_HIGH_MAX", "0.35"))
 MID_MAX = float(os.getenv("RAG_MID_MAX", "0.65"))
+TICKET_REUSE_MAX = float(os.getenv("TICKET_REUSE_MAX", "0.45"))
 
 
 def build_graph():
@@ -100,6 +103,35 @@ def build_graph():
             state.kb_query_source = "normalized"
         return state
 
+    def reuse_or_create_ticket(state: AgentState) -> AgentState:
+        # 1) 유사 티켓 검색
+        candidates = find_similar_ticket(state.user_text, top_k=3)
+
+        # 2) 가장 유사한 티켓이 임계값 이하면 재사용
+        if candidates and candidates[0]["score"] <= TICKET_REUSE_MAX:
+            state.ticket = {
+                "ticket_id": candidates[0]["ticket_id"],
+                "reused": True,
+                "match_score": candidates[0]["score"],
+                "title": candidates[0]["title"],
+            }
+            return state
+
+        # 3) 없으면 새로 생성
+        new_ticket = tickets.create(
+            title=f"헬프데스크 요청: {state.user_text[:30]}",
+            description=state.user_text,
+            priority="P3",
+        )
+        new_ticket["reused"] = False
+        state.ticket = new_ticket
+
+        # 4) 저장 + 인덱스 재생성
+        append_ticket(new_ticket)
+        rebuild_ticket_index()
+
+        return state
+
     g = StateGraph(AgentState)
     g.add_node("rag_search", rag_search)
     g.add_node("evaluate", evaluate)
@@ -107,6 +139,7 @@ def build_graph():
     g.add_node("ask", ask)
     g.add_node("create_ticket", create_ticket)
     g.add_node("compose_ticket", compose_ticket)
+    g.add_node("reuse_or_create_ticket", reuse_or_create_ticket)
 
     g.add_node("query_normalize", query_normalize)
     g.set_entry_point("query_normalize")
@@ -116,11 +149,12 @@ def build_graph():
     g.add_conditional_edges(
         "evaluate",
         route,
-        {"high": "compose_guided", "mid": "ask", "low": "create_ticket"},
+        {"high": "compose_guided", "mid": "ask", "low": "reuse_or_create_ticket"},
     )
     g.add_edge("compose_guided", END)
     g.add_edge("ask", END)
-    g.add_edge("create_ticket", "compose_ticket")
+    # g.add_edge("create_ticket", "compose_ticket")
+    g.add_edge("reuse_or_create_ticket", "compose_ticket")
     g.add_edge("compose_ticket", END)
 
     return g.compile()

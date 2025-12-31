@@ -49,16 +49,22 @@ KB가 애매하게 매칭됐다. 사용자에게 확인 질문 2개만 하고,
 
 
 def prompt_ticket(user_text: str, ticket: Optional[Dict[str, Any]]) -> str:
-    tid = (ticket or {}).get("ticket_id", "TCK-UNKNOWN")
+    t = ticket or {}
+    tid = t.get("ticket_id", "TCK-UNKNOWN")
+    reused = t.get("reused", False)
+
+    note = "기존 티켓을 재사용했습니다." if reused else "새 티켓을 생성했습니다."
+
     return f"""\
 너는 헬프데스크 에이전트다.
-KB로 해결 불가이므로 티켓 생성 결과를 안내하라.
+KB로 해결 불가이므로 티켓 처리 결과를 안내하라.
 
 사용자 요청: {user_text}
-생성된 티켓: {tid}
+처리 결과: {note}
+티켓: {tid}
 
 요구 응답 형식:
 - 근거(KB Hits): []
 - 조치(Action Taken): ticket_created
-- 결과(Result): 티켓 {tid} 생성 안내 + 추가로 필요한 정보 1개 요청
+- 결과(Result): {note} 티켓 {tid} 안내 + 추가로 필요한 정보 1개 요청
 """.strip()
