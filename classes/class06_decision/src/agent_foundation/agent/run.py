@@ -34,6 +34,7 @@ def main():
             print(f"[RAG] top{i} id={h['id']} title={h['title']} score={h['score']:.4f}")
 
     print(out.final_text)
+    print(f"[RAG] query={out.kb_query} source={out.kb_query_source}")
 
     # ---- 파일(jsonl) 로그 ----
     record = build_decision_log(

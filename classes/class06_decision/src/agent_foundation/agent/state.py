@@ -8,6 +8,7 @@ class AgentState(BaseModel):
     user_text: str
 
     kb_query: str = ""
+    kb_query_source: str = "original"  # original | normalized | fallback
     kb_hits: List[Dict[str, Any]] = Field(default_factory=list)
 
     best_score: Optional[float] = None

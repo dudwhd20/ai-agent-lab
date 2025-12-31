@@ -8,6 +8,7 @@ from agent_foundation.agent.state import AgentState
 from agent_foundation.agent.prompts import prompt_guided, prompt_ask, prompt_ticket
 from agent_foundation.rag.faiss_retriever import FaissRetriever
 from agent_foundation.tools.create_ticket import CreateTicketTool
+from agent_foundation.agent.query_normalize import normalize_query, should_fallback_to_original
 
 
 # ✅ distance 기준(낮을수록 유사) 가정
@@ -72,6 +73,17 @@ def build_graph():
         state.action = "ticket_created"
         return state
 
+    def query_normalize(state: AgentState) -> AgentState:
+        candidate = normalize_query(state.user_text)
+
+        if should_fallback_to_original(state.user_text, candidate):
+            state.kb_query = state.user_text
+            state.kb_query_source = "fallback"
+        else:
+            state.kb_query = candidate
+            state.kb_query_source = "normalized"
+        return state
+
     g = StateGraph(AgentState)
     g.add_node("rag_search", rag_search)
     g.add_node("evaluate", evaluate)
@@ -80,8 +92,11 @@ def build_graph():
     g.add_node("create_ticket", create_ticket)
     g.add_node("compose_ticket", compose_ticket)
 
-    g.set_entry_point("rag_search")
+    g.add_node("query_normalize", query_normalize)
+    g.set_entry_point("query_normalize")
+    g.add_edge("query_normalize", "rag_search")
     g.add_edge("rag_search", "evaluate")
+
     g.add_conditional_edges(
         "evaluate",
         route,
