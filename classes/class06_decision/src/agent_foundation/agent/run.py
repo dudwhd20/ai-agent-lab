@@ -33,6 +33,9 @@ def main():
         for i, h in enumerate(out.kb_hits, start=1):
             print(f"[RAG] top{i} id={h['id']} title={h['title']} score={h['score']:.4f}")
 
+    if out.error:
+        print(f"[Error] where={out.error.get('where')} type={out.error.get('type')} msg={out.error.get('message')}")            
+
     print(out.final_text)
     print(f"[RAG] query={out.kb_query} source={out.kb_query_source}")
 

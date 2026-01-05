@@ -18,3 +18,6 @@ class AgentState(BaseModel):
     ticket: Optional[Dict[str, Any]] = None
 
     final_text: str = ""
+
+    
+    error: dict | None = None
